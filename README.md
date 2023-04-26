@@ -42,3 +42,5 @@ image!(p.axis, m; transparency=true)
 
 save("beagle_and_kitten.png", p.figure)
 ```
+
+![beagle_and_kitten](https://user-images.githubusercontent.com/2534009/234685142-9483bd40-1af0-4912-bb25-6024ed0e06fa.png)
