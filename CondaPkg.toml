@@ -1,0 +1,12 @@
+channels = ["pytorch", "nvidia"]
+
+[deps]
+pytorch-cuda = ""
+opencv = ""
+pytorch = ""
+torchvision = ""
+numpy = ""
+torchaudio = ""
+
+[pip.deps]
+segment-anything = "@git+https://github.com/facebookresearch/segment-anything.git"
