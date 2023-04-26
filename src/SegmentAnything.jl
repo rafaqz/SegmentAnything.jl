@@ -18,6 +18,6 @@ function __init__()
     PythonCall.pycopy!(np, pyimport("numpy"))
 end
 
-include("mask-anything.jl")
+include("mask.jl")
 
 end
