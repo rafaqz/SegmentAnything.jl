@@ -18,6 +18,7 @@ image = load("pic.jpg")
 
 # Plot it
 p = Makie.image(rotr90(image); transparency=true)
+p.axis.autolimitaspect = 1
 hidedecorations!(p.axis)
 
 # Mask the kitten, and plot
