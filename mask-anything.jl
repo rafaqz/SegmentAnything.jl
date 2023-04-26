@@ -33,6 +33,23 @@ function convert_points(points::Vector{<: Union{Vec{2, T}, Point{2, T}, NTuple{2
     return permutedims(reinterpret(reshape, T, points), (2, 1))
 end
 
+struct MaskGenerator
+    generator::PyObject
+end
+
+function MaskGenerator(; model_path=DEFAULT_MODEL, device="cuda")
+    model = py"build_sam"(model_path)
+    model.to(device=device)
+    generator = py"SamAutomaticMaskGenerator"(model)
+    return MaskGenerator(generator)
+end
+
+function generate(generator::MaskGenerator, image::Matrix{<:Colorant})
+    img = convert(Matrix{RGB{N0f8}}, image)
+    # bring into correct form:
+    generator.generator.generate(permutedims(reinterpret(reshape, UInt8, img), (2, 3, 1)))
+end
+
 convert_labels(labels::Nothing) = labels
 convert_labels(labels::Vector{<: Number}) = labels
 
