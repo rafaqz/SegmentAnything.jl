@@ -1,7 +1,3 @@
-using ColorTypes: N0f8, RGB
-
-const DEFAULT_MODEL = realpath(joinpath(@__DIR__, "../deps/sam_vit_h_4b8939.pth"))
-
 """
     MaskPredictor
 
@@ -15,18 +11,34 @@ A wrapper for "SamPredictor"
 struct MaskPredictor
     predictor::Any#PythonCall.Py
 end
-function MaskPredictor(; model_path=DEFAULT_MODEL, device="cuda")
-    model = sam.build_sam(model_path)
-    model.to(device=device)
-    predictor = sam.SamPredictor(model)
+function MaskPredictor(; model_path=nothing, device="cuda")
+    predictor = if isnothing(model_path)
+        if isnothing(DEFAULT_PREDICTOR[])
+            DEFAULT_PREDICTOR[] = _load_predictor(DEFAULT_MODEL, "cuda")
+        end
+        DEFAULT_PREDICTOR[]
+    else
+        _load_predictor(model_path, device)
+    end
     return MaskPredictor(predictor)
 end
 
+function _load_predictor(model_path, device)
+    model = sam.build_sam(model_path)
+    model.to(device=device)
+    return sam.SamPredictor(model)
+end
+
 function set_image(predictor::MaskPredictor, image::Matrix{<:Colorant})
+    A = python_image(image)
+    predictor.predictor.set_image(A)
+end
+
+function python_image(image)
     img = convert(Matrix{RGB{N0f8}}, image)
     # bring into correct form:
-    A = permutedims(reinterpret(reshape, UInt8, img), (2, 3, 1))
-    predictor.predictor.set_image(np.asarray(A))
+    permuted = permutedims(reinterpret(reshape, UInt8, img), (2, 3, 1))
+    return np.asarray(permuted)
 end
 
 """
@@ -50,9 +62,8 @@ function MaskGenerator(; model_path=DEFAULT_MODEL, device="cuda")
 end
 
 function generate(generator::MaskGenerator, image::Matrix{<:Colorant})
-    img = convert(Matrix{RGB{N0f8}}, image)
-    # bring into correct form:
-    generator.generator.generate(permutedims(reinterpret(reshape, UInt8, img), (2, 3, 1)))
+    A = python_image(image)
+    return generator.generator.generate(A)
 end
 
 """
@@ -73,7 +84,6 @@ end
 -`box`: A GeometryBasics `Rect` or a `[x1, y2, x2, y1]` bounding box.
 """
 mutable struct ImageMask
-    predictor::MaskPredictor
     original::AbstractMatrix{<:Colorant}
     masks::Array{Bool,3}
     scores::Vector{Float32}
@@ -83,27 +93,26 @@ end
 function ImageMask(predictor::MaskPredictor, image::AbstractMatrix{<:Colorant}; kw...)
     set_image(predictor, image)
     mimg = ImageMask(
-        predictor, 
         image, 
-        zeros(Bool, 3, size(image)...), 
+        zeros(Bool, 3, size(image)...),
         Float32[], 
         zeros(Float32, 0, 0, 0), 
         nothing,
     )
     if !isempty(kw)
-        get_mask!(mimg; kw...)
+        get_mask!(mimg; predictor, kw...)
     end
     return mimg
 end
 
 function get_mask!(image::ImageMask; 
-    multimask=true, points=nothing, labels=nothing, box=nothing
+    predictor, multimask=true, points=nothing, labels=nothing, box=nothing
 )
     if all(isnothing, (points, labels, box))
         error("use `automatic_masks(predictor, image)")
     else
         kw = (; multimask, points, labels, box)
-        masks, scores, logits = get_mask(image.predictor; kw...)
+        masks, scores, logits = get_mask(predictor; kw...)
         image.masks = pyconvert(Array, masks)
         image.scores = pyconvert(Array, scores)
         image.logits = pyconvert(Array, logits)
@@ -111,6 +120,7 @@ function get_mask!(image::ImageMask;
         return masks, scores, logits
     end
 end
+
 function get_mask(predictor::MaskPredictor;
     multimask=true, points=nothing, labels=nothing, box=nothing
 )
@@ -148,3 +158,9 @@ function convert_box(box::AbstractArray)
     end
     return np.asarray(collect(box))
 end
+
+function unsafe_empty_cache() 
+    gc.collect()
+    torch.cuda.empty_cache()
+end
+
