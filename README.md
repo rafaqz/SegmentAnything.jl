@@ -4,6 +4,20 @@ A thin wrapper for installing and using
 [segment-anything](https://github.com/facebookresearch/segment-anything) 
 in Julia.
 
+## Status:
+
+The single object `MaskPredictor` works well and reliably, as in the example below. 
+
+The multi-object mask `MaskGenerator` works with the `generate` funcion, but currently
+returns an unwrapped python object.Calling `generate(maskgenerator)` multiple times seems to 
+quickly fill GPU memory without freeing it. It's not clear if the problem is on the Python 
+side or the Julia side.
+
+`SegmentAnything.unsafe_empty_cache()` attempts to free memory, but doesn't
+generally seem to work. PRs solving this would be appreciated!
+
+## Example
+
 ```julia
 using SegmentAnything, GLMakie, FileIO
 
