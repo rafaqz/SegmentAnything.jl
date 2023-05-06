@@ -22,7 +22,7 @@ generally seem to work. PRs solving this would be appreciated!
 using SegmentAnything, GLMakie, FileIO
 
 # Load the predictor model
-predictor = MaskPredictor()
+predictor = SamPredictor()
 
 # Download an image
 using Downloads

@@ -13,7 +13,6 @@ struct SamPredictor
     predictor::PythonCall.Py
 end
 function SamPredictor(; kw...)
-    sam = sam.sam_model_registry["<model_type>"](checkpoint="")
     predictor = sam.SamPredictor(_load_model(; kw...))
     return SamPredictor(predictor)
 end
@@ -26,7 +25,7 @@ Wrapper function to call `predictor.predict(args...)`.
 
 It may have an `image` argument that will update the predictor
 image with `set_image!` prior to running predictions. 
-
+ja
 # Keywords
 
 - `multimask`: Return multiple masks, `true` by default.
@@ -60,7 +59,7 @@ end
 """
     SamAutomaticMaskGenerator
 
-    SamAutomaticMaskGeneratorredictor(; model_path=DEFAULT_MODEL, device="cuda")
+    SamAutomaticMaskGeneratorredictor(; model_path=DEFAULT_MODEL_CHECKPOINT, device="cuda")
 
 A wrapper for "SamAutomaticMaskGenerator".
 
@@ -160,8 +159,8 @@ function unsafe_empty_cache()
 end
 
 function _load_model(; 
-    checkpoint=DEFAULT_MODEL_CHECKPOINT, 
-    model_type="vit_h"
+    checkpoint=DEFAULT_MODEL_CHECKPOINT,
+    model_type="vit_h",
     device="cuda",
 )
     # It seems easy to exaust GPU memory by loading the model multiple times,
@@ -186,6 +185,7 @@ function _load_model(;
     #         return model
     #     end
     # end
+    model
 end
 
 function _python_image(image)
