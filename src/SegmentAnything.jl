@@ -12,10 +12,10 @@ const np = PythonCall.pynew()
 const torch = PythonCall.pynew()
 const gc = PythonCall.pynew()
 
-export MaskPredictor, MaskGenerator, ImageMask
+export ImageMask, SamPredictor, SamAutomaticMaskGenerator, predict, generate
 
-const DEFAULT_MODEL_PATH = realpath(joinpath(@__DIR__, "../deps/sam_vit_h_4b8939.pth"))
-const CURRENT_MODEL_PATH = Base.RefValue{String}(DEFAULT_MODEL_PATH)
+const DEFAULT_MODEL_CHECKPOINT = realpath(joinpath(@__DIR__, "../deps/sam_vit_h_4b8939.pth"))
+const CURRENT_MODEL_CHECKPOINT = Base.RefValue{String}(DEFAULT_MODEL_PATH)
 const CURRENT_MODEL = Base.RefValue{Any}(nothing)
 
 function __init__()
