@@ -12,11 +12,6 @@ struct MaskPredictor
     predictor::PythonCall.Py
 end
 function MaskPredictor(; kw...)
-    # Its easy to exaust GPU memory by loading the model multiple times,
-    # As for some reason pytorch does not seem to garbage collect them.
-    # So we cache models in a global Ref, and only load them again
-    # if a new model_path is passed in. Its really best to only use one
-    # model per session.
     predictor = sam.SamPredictor(_load_model(; kw...))
     return MaskPredictor(predictor)
 end
@@ -155,6 +150,11 @@ function unsafe_empty_cache()
 end
 
 function _load_model(; model_path=DEFAULT_MODEL, device="cuda")
+    # Its easy to exaust GPU memory by loading the model multiple times,
+    # As for some reason pytorch does not seem to garbage collect them.
+    # So we cache models in a global Ref, and only load them again
+    # if a new model_path is passed in. Its really best to only use one
+    # model per session.
     predictor = if isnothing(model_path)
         if isnothing(CURRENT_MODEL[])
             # Probably the first call, load the default model
