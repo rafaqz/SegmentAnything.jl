@@ -9,24 +9,16 @@ A wrapper for "SamPredictor"
 - `device`: can be "cuda" or "cpu".
 """
 struct MaskPredictor
-    predictor::Any#PythonCall.Py
+    predictor::PythonCall.Py
 end
-function MaskPredictor(; model_path=nothing, device="cuda")
-    predictor = if isnothing(model_path)
-        if isnothing(DEFAULT_PREDICTOR[])
-            DEFAULT_PREDICTOR[] = _load_predictor(DEFAULT_MODEL, "cuda")
-        end
-        DEFAULT_PREDICTOR[]
-    else
-        _load_predictor(model_path, device)
-    end
+function MaskPredictor(; kw...)
+    # Its easy to exaust GPU memory by loading the model multiple times,
+    # As for some reason pytorch does not seem to garbage collect them.
+    # So we cache models in a global Ref, and only load them again
+    # if a new model_path is passed in. Its really best to only use one
+    # model per session.
+    predictor = sam.SamPredictor(_load_model(; kw...))
     return MaskPredictor(predictor)
-end
-
-function _load_predictor(model_path, device)
-    model = sam.build_sam(model_path)
-    model.to(device=device)
-    return sam.SamPredictor(model)
 end
 
 function set_image(predictor::MaskPredictor, image::Matrix{<:Colorant})
@@ -36,15 +28,14 @@ end
 
 function python_image(image)
     img = convert(Matrix{RGB{N0f8}}, image)
-    # bring into correct form:
     permuted = permutedims(reinterpret(reshape, UInt8, img), (2, 3, 1))
     return np.asarray(permuted)
 end
 
 """
-    MaskPredictor
+    MaskGenerator
 
-    MaskPredictor(; model_path=DEFAULT_MODEL, device="cuda")
+    MaskPGeneratorredictor(; model_path=DEFAULT_MODEL, device="cuda")
 
 A wrapper for "SamAutomaticMaskGenerator".
 
@@ -52,11 +43,10 @@ A wrapper for "SamAutomaticMaskGenerator".
 - `device`: can be "cuda" or "cpu".
 """
 struct MaskGenerator
-    generator::Any#PythonCall.Py
+    generator::PythonCall.Py
 end
-function MaskGenerator(; model_path=DEFAULT_MODEL, device="cuda")
-    model = sam.build_sam(model_path)
-    model.to(device=device)
+function MaskGenerator(; kw...)
+    model = _load_model(; kw...)
     generator = sam.SamAutomaticMaskGenerator(model)
     return MaskGenerator(generator)
 end
@@ -164,3 +154,20 @@ function unsafe_empty_cache()
     torch.cuda.empty_cache()
 end
 
+function _load_model(; model_path=DEFAULT_MODEL, device="cuda")
+    predictor = if isnothing(model_path)
+        if isnothing(CURRENT_MODEL[])
+            # Probably the first call, load the default model
+            CURRENT_MODEL[] = _load_model(DEFAULT_MODEL_PATH, "cuda")
+        end
+        # We already have a predictor loaded, use it
+        return CURRENT_MODEL[]
+    else
+        # We want a different model to the one loaded
+        if model_path != CURRENT_MODEL_PATH[]
+            model = sam.build_sam(model_path)
+            model.to(device=device)
+            return model
+        end
+    end
+end

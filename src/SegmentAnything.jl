@@ -14,8 +14,9 @@ const gc = PythonCall.pynew()
 
 export MaskPredictor, MaskGenerator, ImageMask
 
-const DEFAULT_MODEL = realpath(joinpath(@__DIR__, "../deps/sam_vit_h_4b8939.pth"))
-const DEFAULT_PREDICTOR = Base.RefValue{Any}(nothing)
+const DEFAULT_MODEL_PATH = realpath(joinpath(@__DIR__, "../deps/sam_vit_h_4b8939.pth"))
+const CURRENT_MODEL_PATH = Base.RefValue{String}(DEFAULT_MODEL_PATH)
+const CURRENT_MODEL = Base.RefValue{Any}(nothing)
 
 function __init__()
     PythonCall.pycopy!(cv, pyimport("cv2"))
