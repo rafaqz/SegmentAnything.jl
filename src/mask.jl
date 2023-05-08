@@ -5,9 +5,26 @@
 
 A wrapper for "SamPredictor"
 
+# Keywords
+
 - `model_type`: The sam model type. "vit_h" by default.
 - `checkpoint`: The path to an alternate model file.
 - `device`: can be "cuda" or "cpu".
+
+[`set_image!(predictor, image)`](@ref) can be used to update the predictor image,
+while [`predict`](@ref) can be used to run the model, returning unconverted python outputs.
+
+[`ImageMask`](@ref) provides a more julian wrapper around the process, converting the results for you.
+
+*Note:*
+
+It seems easy to exaust GPU memory by loading the model 
+multiple times, as pytorch may not garbage collect them.
+
+So we cache models in a global Ref, and only load them again if a new 
+`checkpoint` is used in. 
+
+But it is probably best to only use one model per session.
 """
 struct SamPredictor
     predictor::PythonCall.Py
@@ -21,32 +38,32 @@ end
 
     predict(predictor::SamPredictor[, image::Matrix{<:Colorant}])
 
-Wrapper function to call `predictor.predict(args...)`.
+Wrapper function to call `predictor.predict(args...)`, following the same syntax.
 
-It may have an `image` argument that will update the predictor
-image with `set_image!` prior to running predictions. 
-ja
+It may also have an `image` argument that will update the predictor
+image with `set_image!` prior to running predictions, mirroring the behaviour of `generate`. 
+
 # Keywords
 
-- `multimask`: Return multiple masks, `true` by default.
-- `points`: a `Vector` of `Tuple` or GeometryBasics.jl `Point`.
-- `labels`: a `Vector{Int}` or `Vector{Bool}`
+- `multimask_output`: Return multiple masks, `true` by default.
+- `point_coords`: a `Vector` of `Tuple` or GeometryBasics.jl `Point`.
+- `point_labels`: a `Vector{Int}` or `Vector{Bool}`
 - `box`: A GeometryBasics `Rect` or a `[x1, y2, x2, y1]` bounding box.
 """
-function predict(predictor::SamPredictor, image::Matrix{<:Colorant}=nothing;
+function predict(predictor::SamPredictor, image::Union{Nothing,Matrix{<:Colorant}}=nothing;
      point_labels=nothing,
      point_coords=nothing,
      box=nothing,
-     multimask=true
+     multimask_output=true,
 )
-    all(isnothing, (points, labels, box)) && error("use SamAutomaticMaskGenerator if you have no points, labels or bbox")
+    all(isnothing, (point_coords, point_labels, box)) && error("use SamAutomaticMaskGenerator if you have no points, labels or bbox")
 
     isnothing(image) || set_image!(predictor, image)
     masks, scores, logits = predictor.predictor.predict(
-        point_coords=convert_points(points),
-        point_labels=convert_labels(labels),
+        point_coords=convert_points(point_coords),
+        point_labels=convert_labels(point_labels),
         box=convert_box(box),
-        multimask_output=multimask,
+        multimask_output=multimask_output,
     )
 end
 
@@ -59,7 +76,7 @@ end
 """
     SamAutomaticMaskGenerator
 
-    SamAutomaticMaskGeneratorredictor(; model_path=DEFAULT_MODEL_CHECKPOINT, device="cuda")
+    SamAutomaticMaskGeneratorredictor(; model_path=DEFAULT_CHECKPOINT, device="cuda")
 
 A wrapper for "SamAutomaticMaskGenerator".
 
@@ -94,9 +111,9 @@ little nicer to work with, and converts the results to julia objects.
 
 # Keywords (as for `predict`)
 
--`multimask`: Return multiple masks, `true` by default.
--`points`: a `Vector` of `Tuple` or GeometryBasics.jl `Point`.
--`labels`: a `Vector{Int}` or `Vector{Bool}`
+-`multimask_output`: Return multiple masks, `true` by default.
+-`point_coords`: a `Vector` of `Tuple` or GeometryBasics.jl `Point`.
+-`point_labels`: a `Vector{Int}` or `Vector{Bool}`
 -`box`: A GeometryBasics `Rect` or a `[x1, y2, x2, y1]` bounding box.
 """
 mutable struct ImageMask
@@ -115,14 +132,12 @@ function ImageMask(predictor::SamPredictor, image::AbstractMatrix{<:Colorant}; k
         zeros(Float32, 0, 0, 0), 
         nothing,
     )
-    if !isempty(kw)
-        get_mask!(mimg; predictor, kw...)
-    end
+    get_mask!(mimg, predictor; kw...)
     return mimg
 end
 
-function get_mask!(image::ImageMask; kw...)
-    masks, scores, logits = predict(image.predictor; kw...)
+function get_mask!(image::ImageMask, predictor::SamPredictor; kw...)
+    masks, scores, logits = predict(predictor; kw...)
     image.masks = pyconvert(Array, masks)
     image.scores = pyconvert(Array, scores)
     image.logits = pyconvert(Array, logits)
@@ -159,33 +174,41 @@ function unsafe_empty_cache()
 end
 
 function _load_model(; 
-    checkpoint=DEFAULT_MODEL_CHECKPOINT,
+    checkpoint=nothing,
     model_type="vit_h",
     device="cuda",
 )
-    # It seems easy to exaust GPU memory by loading the model multiple times,
-    # As for some reason pytorch does not seem to garbage collect them.
-    # So we cache models in a global Ref, and only load them again
-    # if a new model_path is passed in. Its really best to only use one
-    # model per session.
-    model = sam.sam_model_registry[model_type](checkpoint = checkpoint)
-    model.to(device=device)
-    # model = if isnothing(model_path)
-    #     if isnothing(CURRENT_MODEL[])
-    #         # Probably the first call, load the default model
-    #         # CURRENT_MODEL[] = _load_model(DEFAULT_MODEL_PATH, "cuda")
-    #     end
-        # We already have a predictor loaded, use it
-        # return CURRENT_MODEL[]
-    # else
-    #     # We want a different model to the one loaded
-    #     if model_path != CURRENT_MODEL_PATH[]
-    #         model = sam.sam_model_registry[model_type](checkpoint = checkpoint)
-    #         model = sam.build_sam(model_path)
-    #         return model
-    #     end
-    # end
-    model
+    # It seems easy to exaust GPU memory by loading the model 
+    # multiple times, as pytorch may not garbage collect them.
+    #
+    # So we cache models in a global Ref, and only load them again if a new 
+    # checkpoint is passed in. Its best to only use one model per session.
+    model = if isnothing(checkpoint)
+        if isnothing(CURRENT_MODEL[])
+            # Probably the first call, load the default model
+            model = sam.sam_model_registry[model_type](checkpoint = DEFAULT_CHECKPOINT)
+            model.to(device=device)
+            CURRENT_CHECKPOINT[] = DEFAULT_CHECKPOINT
+            CURRENT_DEVICE[] = device
+            CURRENT_MODEL[] = model
+        end
+        return CURRENT_MODEL[]
+    else
+        # We want a different model to the one loaded
+        if checkpoint != CURRENT_CHECKPOINT[]
+            model = sam.sam_model_registry[model_type](checkpoint = checkpoint)
+            model = sam.build_sam(model_path)
+            model.to(device=device)
+            CURRENT_CHECKPOINT[] = DEFAULT_CHECKPOINT
+            CURRENT_DEVICE[] = device
+            return model
+        end
+    end
+    if device != CURRENT_DEVICE[]
+        CURRENT_DEVICE[] = device
+        model.to(device=device)
+    end
+    return model
 end
 
 function _python_image(image)

@@ -37,8 +37,8 @@ hidedecorations!(p.axis)
 
 # Mask the kitten, and plot
 mask1 = ImageMask(predictor, image; 
-  points=[(400, 800)],
-  labels=[true],
+  point_coords=[(400, 800)],
+  point_labels=[true],
 )
 m = rotr90(map(mask1.masks[2, :, :]) do x
      x ? RGBAf(1, 0, 0, 1) : RGBAf(0, 0, 0, 0)
@@ -47,8 +47,8 @@ image!(p.axis, m; transparency=true)
 
 # Now mask the beagle, and plot
 mask2 = ImageMask(predictor, image; 
-  points=[(400, 600)],
-  labels=[true],
+  point_coords=[(400, 600)],
+  point_labels=[true],
 )
 m = rotr90(map(mask2.masks[2, :, :]) do x
      x ? RGBAf(0, 0.0, 1.0, 1) : RGBAf(0, 0, 0, 0)
