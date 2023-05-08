@@ -67,6 +67,14 @@ function predict(predictor::SamPredictor, image::Union{Nothing,Matrix{<:Colorant
     )
 end
 
+"""
+    set_image!(predictor::SamPredictor, image::Matrix{<:Colorant})
+
+Update the image used in the predictor.
+
+Essentially the `set_image` function segment-anything with
+a conversion of native julia images to numpy arrays.
+"""
 function set_image!(predictor::SamPredictor, image::Matrix{<:Colorant})
     A = _python_image(image)
     predictor.predictor.set_image(A)
