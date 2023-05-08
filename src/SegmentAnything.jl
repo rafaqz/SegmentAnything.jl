@@ -12,10 +12,13 @@ const np = PythonCall.pynew()
 const torch = PythonCall.pynew()
 const gc = PythonCall.pynew()
 
-export MaskPredictor, MaskGenerator, ImageMask
+export ImageMask, SamPredictor, SamAutomaticMaskGenerator, predict, generate
 
-const DEFAULT_MODEL = realpath(joinpath(@__DIR__, "../deps/sam_vit_h_4b8939.pth"))
-const DEFAULT_PREDICTOR = Base.RefValue{Any}(nothing)
+const DEFAULT_CHECKPOINT = realpath(joinpath(@__DIR__, "../deps/sam_vit_h_4b8939.pth"))
+const DEFAULT_DEVICE = "cuda"
+const CURRENT_CHECKPOINT = Base.RefValue{String}(DEFAULT_CHECKPOINT)
+const CURRENT_DEVICE = Base.RefValue{String}(DEFAULT_DEVICE)
+const CURRENT_MODEL = Base.RefValue{Any}(nothing)
 
 function __init__()
     PythonCall.pycopy!(cv, pyimport("cv2"))
