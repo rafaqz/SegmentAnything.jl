@@ -76,7 +76,7 @@ Essentially the `set_image` function segment-anything with
 a conversion of native julia images to numpy arrays.
 """
 function set_image!(predictor::SamPredictor, image::Matrix{<:Colorant})
-    A = _python_image(image)
+    A = python_image(image)
     predictor.predictor.set_image(A)
     return A
 end
@@ -97,11 +97,11 @@ end
 function SamAutomaticMaskGenerator(; kw...)
     model = _load_model(; kw...)
     generator = sam.SamAutomaticMaskGenerator(model)
-    return MaskGenerator(generator)
+    return SamAutomaticMaskGenerator(generator)
 end
 
 function generate(generator::SamAutomaticMaskGenerator, image::Matrix{<:Colorant})
-    return generator.generator.generate(_python_image(A))
+    return generator.generator.generate(python_image(image))
 end
 
 """
@@ -219,7 +219,13 @@ function _load_model(;
     return model
 end
 
-function _python_image(image)
+function python_image(image)
+    img = convert(Matrix{RGB{N0f8}}, image)
+    permuted = permutedims(reinterpret(reshape, UInt8, img), (2, 3, 1))
+    return np.asarray(permuted)
+end
+
+function julia_mask(image)
     img = convert(Matrix{RGB{N0f8}}, image)
     permuted = permutedims(reinterpret(reshape, UInt8, img), (2, 3, 1))
     return np.asarray(permuted)

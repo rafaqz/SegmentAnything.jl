@@ -4,17 +4,12 @@ A thin wrapper for installing and using
 [segment-anything](https://github.com/facebookresearch/segment-anything) 
 in Julia.
 
-## Status:
+It provides `SamPredictor` and a `predict` function and
+`SamAutomaticMaskGenerator` and `generate`, as in segment-anything.
 
-The single object `MaskPredictor` works well and reliably, as in the example below. 
+`predict` and `generate` return the raw outputs of their namesake python methods.
 
-The multi-object mask `MaskGenerator` works with the `generate` funcion, but currently
-returns an unwrapped python object.Calling `generate(maskgenerator)` multiple times seems to 
-quickly fill GPU memory without freeing it. It's not clear if the problem is on the Python 
-side or the Julia side.
-
-`SegmentAnything.unsafe_empty_cache()` attempts to free memory, but doesn't
-generally seem to work. PRs solving this would be appreciated!
+`ImageMask` provides a more julia wrapper for `SamPredictor` and `predict`.
 
 ## Example
 
@@ -59,3 +54,26 @@ save("beagle_and_kitten.png", p.figure)
 ```
 
 ![beagle_and_kitten](https://user-images.githubusercontent.com/2534009/234685142-9483bd40-1af0-4912-bb25-6024ed0e06fa.png)
+
+We can also use the automatic mask generator:
+
+```julia
+using SegmentAnything, GLMakie, FileIO, PythonCall
+p = Makie.image(rotr90(image); transparency=true)
+
+# Load the predictor model
+
+generator = SamAutomaticMaskGenerator()
+out = generate(generator, image)
+segments = rotr90(PythonCall.pyconvert(Array, x["segmentation"])) .* 0
+for (n, x) in enumerate(out)
+    A = rotr90(PythonCall.pyconvert(Array, x["segmentation"]))
+    for i in eachindex(A)
+        if A[i] 
+           segments[i] = n
+        end
+    end
+end
+Makie.image!(p.axis, segments; transparency=true, colormap=(:tableau_20, 2.0))
+
+save("auto_segmentation.png", p.figure)
