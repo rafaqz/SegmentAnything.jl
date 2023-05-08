@@ -77,3 +77,6 @@ end
 Makie.image!(p.axis, segments; transparency=true, colormap=(:tableau_20, 2.0))
 
 save("auto_segmentation.png", p.figure)
+```
+
+![auto_segmentation](https://user-images.githubusercontent.com/2534009/236788199-974810dc-8e44-496c-8095-bd38d4078f07.png)
