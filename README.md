@@ -23,32 +23,32 @@ predictor = SamPredictor()
 using Downloads
 url = "https://upload.wikimedia.org/wikipedia/commons/a/a1/Beagle_and_sleeping_black_and_white_kitty-01.jpg"
 Downloads.download(url, "pic.jpg")
-image = load("pic.jpg")
+img = load("pic.jpg")
 
 # Plot it
-p = Makie.image(rotr90(image); transparency=true)
+p = Makie.image(rotr90(img); transparency=true)
 p.axis.autolimitaspect = 1
 hidedecorations!(p.axis)
 
 # Mask the kitten, and plot
-mask1 = ImageMask(predictor, image; 
+mask1 = ImageMask(predictor, img; 
   point_coords=[(400, 800)],
   point_labels=[true],
 )
-m = rotr90(map(mask1.masks[2, :, :]) do x
+m1 = rotr90(map(mask1.masks[2, :, :]) do x
      x ? RGBAf(1, 0, 0, 1) : RGBAf(0, 0, 0, 0)
 end)
-image!(p.axis, m; transparency=true)
+image!(p.axis, m1; transparency=true)
 
 # Now mask the beagle, and plot
-mask2 = ImageMask(predictor, image; 
+mask2 = ImageMask(predictor, img; 
   point_coords=[(400, 600)],
   point_labels=[true],
 )
-m = rotr90(map(mask2.masks[2, :, :]) do x
+m2 = rotr90(map(mask2.masks[2, :, :]) do x
      x ? RGBAf(0, 0.0, 1.0, 1) : RGBAf(0, 0, 0, 0)
 end)
-image!(p.axis, m; transparency=true)
+image!(p.axis, m2; transparency=true)
 
 save("beagle_and_kitten.png", p.figure)
 ```
@@ -59,13 +59,16 @@ We can also use the automatic mask generator:
 
 ```julia
 using SegmentAnything, GLMakie, FileIO, PythonCall
-p = Makie.image(rotr90(image); transparency=true)
+p = Makie.image(rotr90(img); transparency=true)
 
 # Load the predictor model
-
 generator = SamAutomaticMaskGenerator()
-out = generate(generator, image)
-segments = rotr90(PythonCall.pyconvert(Array, x["segmentation"])) .* 0
+out = generate(generator, img)
+
+# Create an array of zeros to write into
+segments = rotr90(PythonCall.pyconvert(Array, out[1]["segmentation"])) .* 0
+
+# Loop over the returned objects, which is an array of python dictionaries.
 for (n, x) in enumerate(out)
     A = rotr90(PythonCall.pyconvert(Array, x["segmentation"]))
     for i in eachindex(A)
